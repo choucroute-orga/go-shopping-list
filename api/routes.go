@@ -41,7 +41,39 @@ func (api *ApiHandler) getShoppingList(c echo.Context) error {
 
 	l.Debug("Getting Shopping List")
 
-	return c.JSON(http.StatusOK, "Shopping List")
+	ingredients, err := db.GetShoppingList(api.rdb, "1")
+
+	if err != nil {
+		FailOnError(l, err, "Failed to get shopping list")
+		return NewInternalServerError(err)
+	}
+
+	return c.JSON(http.StatusOK, ingredients)
+}
+
+func (api *ApiHandler) addRecipe(c echo.Context) error {
+	l := logger.WithField("request", "addRecipe")
+
+	l.Debug("Adding Recipe")
+	recipe := new(AddRecipeRequest)
+
+	if err := c.Bind(recipe); err != nil {
+		FailOnError(l, err, "Binding recipe failed")
+		return NewBadRequestError(err)
+	}
+	if err := c.Validate(recipe); err != nil {
+		FailOnError(l, err, "Validation failed")
+		return NewBadRequestError(err)
+	}
+	l.Info("Validating Recipe " + recipe.ID)
+	recipeDb, ingredientsDb := NewRecipe(recipe)
+	ingredientRes, err := db.AddRecipe(api.rdb, "1", recipe.ID, recipeDb, ingredientsDb)
+	if err != nil {
+		FailOnError(l, err, "Failed to add recipe")
+		return NewInternalServerError(err)
+	}
+	// TODO Change the response to return the recipe
+	return c.JSON(http.StatusOK, ingredientRes)
 }
 
 func (api *ApiHandler) addIngredient(c echo.Context) error {

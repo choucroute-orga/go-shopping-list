@@ -7,6 +7,7 @@ type Quantity struct {
 }
 
 type Ingredient struct {
+	ID         string     `json:"id" validate:"omitempty"`
 	Quantities []Quantity `json:"quantities"`
 }
 

@@ -29,6 +29,8 @@ func (api *ApiHandler) Register(v1 *echo.Group, conf *configuration.Configuratio
 	ingredients := v1.Group("/ingredient")
 	ingredients.POST("/:id", api.addIngredient)
 	recipe := v1.Group("/recipe")
+	recipe.POST("", api.addRecipe)
 	recipe.POST("/:recipe_id/ingredient/:id", api.addIngredient)
-	// shoppingList := v1.Group("/shopping-list")
+	shoppingList := v1.Group("/shopping-list")
+	shoppingList.GET("", api.getShoppingList)
 }
