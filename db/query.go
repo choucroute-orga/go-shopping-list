@@ -12,7 +12,7 @@ var logger = logrus.WithFields(logrus.Fields{
 	"context": "db/query",
 })
 
-func getIngredient(rdb *redis.Client, userId string, ingredientId string) (*Ingredient, error) {
+func GetIngredient(rdb *redis.Client, userId string, ingredientId string, recipeIds ...string) (*Ingredient, error) {
 
 	ctx := context.Background()
 	res, err := rdb.Get(ctx, userId+":ingredient:"+ingredientId).Result()
@@ -27,12 +27,37 @@ func getIngredient(rdb *redis.Client, userId string, ingredientId string) (*Ingr
 		logger.WithError(err).Error("Failed to unmarshal ingredient: " + ingredientId)
 		return nil, err
 	}
+
+	// Filter the quantities by recipeId if it is provided
+	recipeId := ""
+
+	if len(recipeIds) > 0 {
+		recipeId = recipeIds[0]
+	}
+	if recipeId != "" {
+		// Filter the quantities by recipeId
+		var filteredQuantities []Quantity
+		for _, quantity := range quantities {
+			if quantity.RecipeID == recipeId {
+				filteredQuantities = append(filteredQuantities, quantity)
+			}
+		}
+		quantities = filteredQuantities
+	}
+
+	// Otherwise, return all the quantities
+
 	return &Ingredient{
+		ID:         ingredientId,
 		Quantities: quantities,
 	}, nil
 }
 
-func getRecipe(rdb *redis.Client, userId string, recipeId string) (*Recipe, error) {
+func GetIngredientRecipe(rdb *redis.Client, userId string, ingredientId string, recipeId string) (*Ingredient, error) {
+	return GetIngredient(rdb, userId, ingredientId, recipeId)
+}
+
+func GetRecipe(rdb *redis.Client, userId string, recipeId string) (*Recipe, error) {
 
 	ctx := context.Background()
 	res, err := rdb.Get(ctx, userId+":recipe:"+recipeId).Result()
@@ -54,34 +79,34 @@ func getRecipe(rdb *redis.Client, userId string, recipeId string) (*Recipe, erro
 
 }
 
-func AddRecipe(rdb *redis.Client, userId string, recipeID string, recipe *Recipe, ingredients *[]Ingredient) (*Ingredient, error) {
+// TODO: Add a counter of time to check how many times the recipe is used
+func AddRecipe(rdb *redis.Client, userId string, recipeID string, recipe *Recipe, ingredients *[]Ingredient) error {
 
 	ctx := context.Background()
 
-	// Check if the recipe already exists
-	recipeSaved, _ := getRecipe(rdb, userId, recipeID)
-	if recipeSaved != nil {
-		// Save the recipe if it does not exist
+	recipeSaved, _ := GetRecipe(rdb, userId, recipeID)
+
+	// Save the recipe if it does not exist
+	if recipeSaved == nil {
 		ingredientsID, err := json.Marshal(recipe.IngredientsID)
 		if err != nil {
 			logger.WithField("recipe", recipe).WithError(err).Error("Failed to marshal recipe")
-			return nil, err
+			return err
 		}
 		err = rdb.Set(ctx, userId+":recipe:"+recipeID, ingredientsID, 0).Err()
 		if err != nil {
 			logger.WithError(err).Error("Failed to set recipe: " + recipeID)
-			return nil, err
+			return err
 		}
 	}
 
-	var ingredientSaved *Ingredient
 	var err error
 	// Save the ingredients
 	for i, ingredient := range *ingredients {
-		ingredientSaved, err = AddIngredient(rdb, userId, recipe.IngredientsID[i], ingredient)
+		_, err = AddIngredient(rdb, userId, recipe.IngredientsID[i], ingredient)
 	}
 
-	return ingredientSaved, err
+	return err
 }
 
 func GetShoppingList(rdb *redis.Client, userId string) (*[]Ingredient, error) {
@@ -94,7 +119,7 @@ func GetShoppingList(rdb *redis.Client, userId string) (*[]Ingredient, error) {
 	var ingredients []Ingredient
 	for _, key := range res {
 		ingredientID := key[len(userId)+12:]
-		ingredient, err := getIngredient(rdb, userId, ingredientID)
+		ingredient, err := GetIngredient(rdb, userId, ingredientID)
 		if err != nil {
 			return nil, err
 		}
@@ -105,11 +130,119 @@ func GetShoppingList(rdb *redis.Client, userId string) (*[]Ingredient, error) {
 	return &ingredients, nil
 }
 
+func RemoveRecipe(rdb *redis.Client, userId string, recipeId string) error {
+	r, err := GetRecipe(rdb, userId, recipeId)
+	if err != nil {
+		return err
+	}
+	for _, ingredientID := range r.IngredientsID {
+		err := RemoveIngredient(rdb, userId, ingredientID, recipeId, false)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Remove the recipe
+	ctx := context.Background()
+	err = rdb.Del(ctx, userId+":recipe:"+recipeId).Err()
+	if err != nil {
+		logger.WithError(err).Error("Failed to delete recipe: " + recipeId)
+		return err
+	}
+	return nil
+
+}
+
+func RemoveIngredientFromRecipe(rdb *redis.Client, userId string, ingredientID string, recipeId string) error {
+
+	r, err := GetRecipe(rdb, userId, recipeId)
+	if err != nil {
+		return err
+	}
+	// Check the ingedientID is in the recipe
+	newIngredientsID := make([]string, 0)
+	for _, id := range r.IngredientsID {
+		if id != ingredientID {
+			newIngredientsID = append(newIngredientsID, id)
+		}
+	}
+
+	if len(newIngredientsID) == 0 {
+		err := RemoveRecipe(rdb, userId, recipeId)
+		return err
+	} else {
+		// Save the updated ingredients
+		ingredientsID, err := json.Marshal(newIngredientsID)
+		if err != nil {
+			logger.WithField("recipe", r).WithError(err).Error("Failed to marshal recipe")
+			return err
+		}
+		ctx := context.Background()
+		err = rdb.Set(ctx, userId+":recipe:"+recipeId, ingredientsID, 0).Err()
+		if err != nil {
+			logger.WithError(err).Error("Failed to set recipe: " + recipeId)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func RemoveIngredient(rdb *redis.Client, userId string, ingredientID string, recipeId string, removeAll bool) error {
+	ctx := context.Background()
+	ingredient, err := GetIngredient(rdb, userId, ingredientID)
+
+	if removeAll {
+		err = rdb.Del(ctx, userId+":ingredient:"+ingredientID).Err()
+		if err != nil {
+			logger.WithError(err).Error("Failed to delete ingredient: " + ingredientID)
+			return err
+		}
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+	for i, quantity := range ingredient.Quantities {
+		if quantity.RecipeID == recipeId {
+			ingredient.Quantities = append(ingredient.Quantities[:i], ingredient.Quantities[i+1:]...)
+			break
+		}
+	}
+
+	// If quantities is empty, we remove the ingredient
+	if len(ingredient.Quantities) == 0 {
+		err = rdb.Del(ctx, userId+":ingredient:"+ingredientID).Err()
+		if err != nil {
+			logger.WithError(err).Error("Failed to delete ingredient: " + ingredientID)
+			return err
+		}
+		return nil
+	} else {
+
+		// Save the updated quantities
+		quantities, err := json.Marshal(ingredient.Quantities)
+		if err != nil {
+			logger.WithField("ingredient", ingredient).WithError(err).Error("Failed to marshal ingredient")
+			return err
+		}
+
+		err = rdb.Set(ctx, userId+":ingredient:"+ingredientID, quantities, 0).Err()
+		if err != nil {
+			logger.WithError(err).Error("Failed to set ingredient: " + ingredientID)
+			return err
+		}
+	}
+	return nil
+
+}
+
 // TODO Refactor the function
 func AddIngredient(rdb *redis.Client, userId string, ingredientID string, ingredient Ingredient) (*Ingredient, error) {
 
 	ctx := context.Background()
-	ingredientSaved, _ := getIngredient(rdb, userId, ingredientID)
+	ingredientSaved, _ := GetIngredient(rdb, userId, ingredientID)
 
 	for _, quantity := range ingredient.Quantities {
 
@@ -155,75 +288,3 @@ func AddIngredient(rdb *redis.Client, userId string, ingredientID string, ingred
 
 	return ingredientSaved, nil
 }
-
-// func PostRecipe(rdb *redis.Client, userId string, recipe Recipe) error {
-
-// }
-
-// RecipeID is a unique identifier for the recipe
-// IngredientsID is a list of unique identifiers for the ingredients
-// Ingredients are stored in 2 ways:  and userId:ingredientID
-
-// func GetShoppingList(rdb *redis.Client, userId string) (*[]Recipe, error) {
-
-// 	ctx := context.Background()
-// 	res, err := rdb.Keys(ctx, userId+":*").Result()
-// 	if err != nil {
-// 		logger.WithError(err).Error("Failed to get recipes")
-// 		return nil, err
-// 	}
-
-// 	// check if there
-
-// 	var recipes []Recipe
-// 	for _, key := range res {
-
-// 		// Check if the key match the regex for a recipe with 2 : in the key
-// 		// If it does not match, it is an ingredient
-// 		if strings.Count(key, ":") == 2 {
-
-// 			// Extract the part in the middle of the key for the recipe ID
-// 			recipeId := strings.Split(key, ":")[1]
-// 			ingredients, err := GetIngredientsForRecipe(rdb, userId, recipeId)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			recipes = append(recipes, Recipe{
-// 				Ingredients: *ingredients,
-// 			})
-// 		} else {
-// 			ingredientID := strings.Split(key, ":")[1]
-// 			ingredient, err := GetIngredient(rdb, userId, key)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			recipes = append(recipes, *recipe)
-
-// 		}
-// 	}
-// 	return &recipes, nil
-// }
-
-// func GetIngredientsForRecipe(rdb *redis.Client, userId string, recipeId string) (*[]Ingredient, error) {
-
-// 	ctx := context.Background()
-// 	res, err := rdb.Keys(ctx, userId+":"+recipeId+":*").Result()
-
-// 	// Unmarshall the List of Quantities stored in the recipe
-// 	if err != nil {
-// 		logger.WithError(err).Error("Failed to get recipe: " + recipeId)
-// 		return nil, err
-// 	}
-
-// 	// Get the ingredients for the recipe
-// 	var ingredients []Ingredient
-// 	for _, key := range res {
-// 		ingredientID := strings.Split(key, ":")[2]
-// 		ingredient, err := GetIngredient(rdb, userId, ingredientID)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		ingredients = append(ingredients, *ingredient)
-// 	}
-// 	return &ingredients, nil
-// }
