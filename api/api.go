@@ -2,20 +2,26 @@ package api
 
 import (
 	"shopping-list/configuration"
+	"shopping-list/validation"
 
 	"github.com/labstack/echo/v4"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 )
 
 type ApiHandler struct {
-	conf *configuration.Configuration
-	rdb  *redis.Client
+	conf       *configuration.Configuration
+	rdb        *redis.Client
+	amqp       *amqp.Connection
+	validation *validation.Validation
 }
 
-func NewApiHandler(conf *configuration.Configuration, rdb *redis.Client) *ApiHandler {
+func NewApiHandler(conf *configuration.Configuration, rdb *redis.Client, amqp *amqp.Connection) *ApiHandler {
 	handler := ApiHandler{
-		conf: conf,
-		rdb:  rdb,
+		conf:       conf,
+		rdb:        rdb,
+		amqp:       amqp,
+		validation: validation.New(conf),
 	}
 	return &handler
 }

@@ -21,6 +21,7 @@ type Configuration struct {
 	DBName              int
 	DBPassword          string
 	TranslateValidation bool
+	RabbitURI           string
 	JWTSecret           string
 }
 
@@ -52,6 +53,12 @@ func New() *Configuration {
 		os.Exit(1)
 	}
 	conf.DBPassword = os.Getenv("REDIS_PASSWORD")
+
+	rabbitPort := os.Getenv("RABBITMQ_PORT")
+	rabbitUser := os.Getenv("RABBITMQ_DEFAULT_USER")
+	rabbitPassword := os.Getenv("RABBITMQ_DEFAULT_PASS")
+	rabbitHost := os.Getenv("RABBITMQ_HOST")
+	conf.RabbitURI = "amqp://" + rabbitUser + ":" + rabbitPassword + "@" + rabbitHost + ":" + rabbitPort + "/"
 
 	conf.TranslateValidation, err = strconv.ParseBool(os.Getenv("TRANSLATE_VALIDATION"))
 
