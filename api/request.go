@@ -3,7 +3,7 @@ package api
 import "shopping-list/db"
 
 type Quantity struct {
-	Amount float64 `json:"amount" validate:"required,min=0.1"`
+	Amount float64 `json:"amount" validate:"required,min=0"`
 	Unit   string  `json:"unit" validate:"oneof=i is cs tbsp tsp g kg"`
 }
 
