@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"shopping-list/api"
 	"shopping-list/configuration"
 	"shopping-list/db"
@@ -16,6 +18,7 @@ var logger = logrus.WithFields(logrus.Fields{
 })
 
 func main() {
+	configuration.SetupLogging()
 	logger.Info("Shopping List API Starting...")
 
 	conf := configuration.New()
@@ -29,11 +32,20 @@ func main() {
 	h := api.NewApiHandler(conf, rdb, amqp)
 
 	h.Register(v1, conf)
-	go func() {
+	tp, _ := api.InitOtel()
 
-		r.Logger.Fatal(r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)))
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer provider: %v", err)
+		}
+		if err := rdb.Close(); err != nil {
+			logger.WithError(err).Error("Error closing redis connection")
+		}
 	}()
-	h.ConsumesMessages()
 
-	defer rdb.Close()
+	r.Logger.Fatal(r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)))
+
+	go func() {
+		h.ConsumeMessages()
+	}()
 }

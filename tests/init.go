@@ -54,7 +54,6 @@ func GetDefaultConf() *configuration.Configuration {
 	return &configuration.Configuration{
 		ListenAddress: "localhost",
 		ListenPort:    "3000",
-		DBHost:        "localhost",
-		DBPort:        "6379",
+		DBAddr:        "localhost:6379",
 	}
 }

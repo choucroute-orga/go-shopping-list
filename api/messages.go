@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (api *ApiHandler) ConsumesMessages() {
+func (api *ApiHandler) ConsumeMessages() {
 	for {
 		api.consumesMessages()
 		time.Sleep(time.Microsecond)

@@ -7,6 +7,7 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -59,6 +60,6 @@ func New(validation *validation.Validation) *echo.Echo {
 	e.HideBanner = true
 	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
-
+	e.Use(otelecho.Middleware("shopping-list-api"))
 	return e
 }

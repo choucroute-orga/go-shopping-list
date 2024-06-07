@@ -10,9 +10,8 @@ import (
 
 func New(configuration *configuration.Configuration) *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     configuration.DBHost + ":" + configuration.DBPort,
+		Addr:     configuration.DBAddr,
 		Password: configuration.DBPassword,
-		DB:       configuration.DBName,
 	})
 
 	// Test the connectivity of the Redis server
@@ -24,5 +23,3 @@ func New(configuration *configuration.Configuration) *redis.Client {
 	return rdb
 
 }
-
-

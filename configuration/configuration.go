@@ -16,9 +16,7 @@ type Configuration struct {
 	ListenAddress       string
 	ListenRoute         string
 	LogLevel            string
-	DBHost              string
-	DBPort              string
-	DBName              int
+	DBAddr              string
 	DBPassword          string
 	TranslateValidation bool
 	RabbitURI           string
@@ -44,21 +42,10 @@ func New() *Configuration {
 	conf.ListenAddress = os.Getenv("API_ADDRESS")
 	conf.ListenRoute = os.Getenv("API_ROUTE")
 
-	conf.DBHost = os.Getenv("REDIS_HOST")
-	conf.DBPort = os.Getenv("REDIS_PORT")
-	// Convert to int
-	conf.DBName, err = strconv.Atoi(os.Getenv("REDIS_DATABASE"))
-	if err != nil {
-		logger.Error("Failed to parse int for REDIS_DATABASE")
-		os.Exit(1)
-	}
+	conf.DBAddr = os.Getenv("REDIS_ADDR")
 	conf.DBPassword = os.Getenv("REDIS_PASSWORD")
 
-	rabbitPort := os.Getenv("RABBITMQ_PORT")
-	rabbitUser := os.Getenv("RABBITMQ_DEFAULT_USER")
-	rabbitPassword := os.Getenv("RABBITMQ_DEFAULT_PASS")
-	rabbitHost := os.Getenv("RABBITMQ_HOST")
-	conf.RabbitURI = "amqp://" + rabbitUser + ":" + rabbitPassword + "@" + rabbitHost + ":" + rabbitPort + "/"
+	conf.RabbitURI = os.Getenv("RABBITMQ_URL")
 
 	conf.TranslateValidation, err = strconv.ParseBool(os.Getenv("TRANSLATE_VALIDATION"))
 
