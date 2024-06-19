@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"shopping-list/db"
 
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
@@ -21,10 +22,9 @@ var logger = logrus.WithField("context", "api/routes")
 func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 
 	ctx, span := tracer.Start(c.Request().Context(), "getAliveStatus")
-	defer span.End()
 
 	// Use ctx to pass the active span.
-	l := logrus.WithContext(ctx)
+	l := logger.WithContext(ctx).WithField("request", "getAliveStatus")
 	// Error("something failed")
 	status := NewHealthResponse(LiveStatus)
 	if err := c.Bind(status); err != nil {
@@ -40,56 +40,63 @@ func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 	return c.JSON(http.StatusOK, &status)
 }
 
-// func (api *ApiHandler) getReadyStatus(c echo.Context) error {
-// 	// l := logger.WithField("request", "getReadyStatus")
-// 	err := api.rdb.Ping(c.Request().Context()).Err()
-// 	if err != nil {
-// 		FailOnError(l, err, "Redis ping failed")
-// 		return c.JSON(http.StatusServiceUnavailable, NewHealthResponse(NotReadyStatus))
-// 	}
+func (api *ApiHandler) getReadyStatus(c echo.Context) error {
+	ctx, span := tracer.Start(c.Request().Context(), "getReadyStatus")
+	l := logger.WithField("request", "getReadyStatus").WithContext(ctx)
 
-// 	return c.JSON(http.StatusOK, NewHealthResponse(ReadyStatus))
-// }
+	err := api.rdb.Ping(c.Request().Context()).Err()
+	if err != nil {
+		FailOnError(l, err, "Redis ping failed")
+		span.SetAttributes(attribute.String("err", err.Error()))
+		return c.JSON(http.StatusServiceUnavailable, NewHealthResponse(NotReadyStatus))
+	}
+	span.SetAttributes(attribute.String("status", ReadyStatus))
+	span.End()
+	return c.JSON(http.StatusOK, NewHealthResponse(ReadyStatus))
+}
 
-// func (api *ApiHandler) getShoppingList(c echo.Context) error {
-// 	l := logger.WithField("request", "getShoppingList")
+func (api *ApiHandler) getShoppingList(c echo.Context) error {
+	ctx, span := tracer.Start(c.Request().Context(), "getShoppingList")
+	l := logger.WithField("request", "getShoppingList").WithContext(ctx)
 
-// 	l.Debug("Getting Shopping List")
+	l.Debug("Getting Shopping List")
 
-// 	ingredients, err := db.GetShoppingList(api.rdb, "1")
+	ingredients, err := db.GetShoppingList(api.rdb, "1")
 
-// 	if err != nil {
-// 		FailOnError(l, err, "Failed to get shopping list")
-// 		return NewInternalServerError(err)
-// 	}
+	if err != nil {
+		span.SetAttributes(attribute.String("err", err.Error()))
+		FailOnError(l, err, "Failed to get shopping list")
+		return NewInternalServerError(err)
+	}
+	span.SetAttributes(attribute.Int("count", len(*ingredients)))
+	span.End()
+	return c.JSON(http.StatusOK, ingredients)
+}
 
-// 	return c.JSON(http.StatusOK, ingredients)
-// }
+func (api *ApiHandler) addRecipe(c echo.Context) error {
+	l := logger.WithField("request", "addRecipe")
 
-// func (api *ApiHandler) addRecipe(c echo.Context) error {
-// 	l := logger.WithField("request", "addRecipe")
+	l.Debug("Adding Recipe")
+	recipe := new(AddRecipeRequest)
 
-// 	l.Debug("Adding Recipe")
-// 	recipe := new(AddRecipeRequest)
-
-// 	if err := c.Bind(recipe); err != nil {
-// 		FailOnError(l, err, "Binding recipe failed")
-// 		return NewBadRequestError(err)
-// 	}
-// 	if err := c.Validate(recipe); err != nil {
-// 		FailOnError(l, err, "Validation failed")
-// 		return NewBadRequestError(err)
-// 	}
-// 	l.Info("Validating Recipe " + recipe.ID)
-// 	recipeDb, ingredientsDb := NewRecipe(recipe)
-// 	err := db.AddRecipe(api.rdb, "1", recipe.ID, recipeDb, ingredientsDb)
-// 	if err != nil {
-// 		FailOnError(l, err, "Failed to add recipe")
-// 		return NewInternalServerError(err)
-// 	}
-// 	// TODO Change the response to return the recipe
-// 	return c.JSON(http.StatusNoContent, recipe)
-// }
+	if err := c.Bind(recipe); err != nil {
+		FailOnError(l, err, "Binding recipe failed")
+		return NewBadRequestError(err)
+	}
+	if err := c.Validate(recipe); err != nil {
+		FailOnError(l, err, "Validation failed")
+		return NewBadRequestError(err)
+	}
+	l.Info("Validating Recipe " + recipe.ID)
+	recipeDb, ingredientsDb := NewRecipe(recipe)
+	err := db.AddRecipe(api.rdb, "1", recipe.ID, recipeDb, ingredientsDb)
+	if err != nil {
+		FailOnError(l, err, "Failed to add recipe")
+		return NewInternalServerError(err)
+	}
+	// TODO Change the response to return the recipe
+	return c.JSON(http.StatusNoContent, recipe)
+}
 
 // func (api *ApiHandler) getIngredient(c echo.Context) error {
 // 	l := logger.WithField("request", "getIngredient")

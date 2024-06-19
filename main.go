@@ -43,9 +43,10 @@ func main() {
 		}
 	}()
 
-	r.Logger.Fatal(r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)))
-
 	go func() {
 		h.ConsumeMessages()
 	}()
+
+	r.Logger.Fatal(r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)))
+
 }
