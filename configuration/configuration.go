@@ -15,7 +15,7 @@ type Configuration struct {
 	ListenPort          string
 	ListenAddress       string
 	ListenRoute         string
-	LogLevel            string
+	LogLevel            logrus.Level
 	DBAddr              string
 	DBPassword          string
 	TranslateValidation bool
@@ -33,9 +33,19 @@ func New() *Configuration {
 		logrus.WithFields(logrus.Fields{
 			"logLevel": logLevel,
 		}).Info("logLevel not conform, use `info` ")
-		conf.LogLevel = "info"
-	} else {
-		conf.LogLevel = logLevel
+		conf.LogLevel = logrus.InfoLevel
+	}
+
+	if logLevel == "debug" {
+		conf.LogLevel = logrus.DebugLevel
+	} else if logLevel == "error" {
+		conf.LogLevel = logrus.ErrorLevel
+	} else if logLevel == "info" {
+		conf.LogLevel = logrus.InfoLevel
+	} else if logLevel == "trace" {
+		conf.LogLevel = logrus.TraceLevel
+	} else if logLevel == "warn" {
+		conf.LogLevel = logrus.WarnLevel
 	}
 
 	conf.ListenPort = os.Getenv("API_PORT")

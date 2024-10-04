@@ -116,7 +116,7 @@ func GetShoppingList(rdb *redis.Client, userId string) (*[]Ingredient, error) {
 		logger.WithError(err).Error("Failed to get ingredients")
 		return nil, err
 	}
-	var ingredients []Ingredient
+	ingredients := make([]Ingredient, 0)
 	for _, key := range res {
 		ingredientID := key[len(userId)+12:]
 		ingredient, err := GetIngredient(rdb, userId, ingredientID)

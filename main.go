@@ -22,6 +22,7 @@ func main() {
 	logger.Info("Shopping List API Starting...")
 
 	conf := configuration.New()
+	logger.Logger.SetLevel(conf.LogLevel)
 
 	rdb := db.New(conf)
 

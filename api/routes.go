@@ -25,8 +25,8 @@ func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 
 	// Use ctx to pass the active span.
 	l := logger.WithContext(ctx).WithField("request", "getAliveStatus")
-	// Error("something failed")
 	status := NewHealthResponse(LiveStatus)
+
 	if err := c.Bind(status); err != nil {
 		FailOnError(l, err, "Response binding failed")
 		return NewInternalServerError(err)
@@ -42,17 +42,22 @@ func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 
 func (api *ApiHandler) getReadyStatus(c echo.Context) error {
 	ctx, span := tracer.Start(c.Request().Context(), "getReadyStatus")
-	l := logger.WithField("request", "getReadyStatus").WithContext(ctx)
+	l := logger.WithContext(ctx).WithField("request", "getReadyStatus")
+	status := NewHealthResponse(ReadyStatus)
 
 	err := api.rdb.Ping(c.Request().Context()).Err()
 	if err != nil {
+		status = NewHealthResponse(NotReadyStatus)
 		FailOnError(l, err, "Redis ping failed")
 		span.SetAttributes(attribute.String("err", err.Error()))
-		return c.JSON(http.StatusServiceUnavailable, NewHealthResponse(NotReadyStatus))
 	}
-	span.SetAttributes(attribute.String("status", ReadyStatus))
+	l.WithFields(logrus.Fields{
+		"action": "getReadyStatus",
+		"status": status,
+	}).Info("Ready Status ping")
+	span.SetAttributes(attribute.String("status", status.Status))
 	span.End()
-	return c.JSON(http.StatusOK, NewHealthResponse(ReadyStatus))
+	return c.JSON(http.StatusOK, status)
 }
 
 func (api *ApiHandler) getShoppingList(c echo.Context) error {
@@ -68,7 +73,7 @@ func (api *ApiHandler) getShoppingList(c echo.Context) error {
 		FailOnError(l, err, "Failed to get shopping list")
 		return NewInternalServerError(err)
 	}
-	span.SetAttributes(attribute.Int("count", len(*ingredients)))
+	span.SetAttributes(attribute.Int("ingredients.count", len(*ingredients)))
 	span.End()
 	return c.JSON(http.StatusOK, ingredients)
 }
