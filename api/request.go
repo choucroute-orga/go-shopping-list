@@ -4,7 +4,7 @@ import "shopping-list/db"
 
 type Quantity struct {
 	Amount float64 `json:"amount" validate:"required,min=0"`
-	Unit   string  `json:"unit" validate:"oneof=i is cs tbsp tsp g kg"`
+	Unit   string  `json:"unit" validate:"oneof=i g kg ml l"`
 }
 
 type Ingredient struct {
@@ -24,6 +24,7 @@ type AddIngredientRequest struct {
 
 type AddRecipeRequest struct {
 	ID          string                 `json:"id" validate:"required"`
+	UserID      string                 `json:"userId" validate:"required"`
 	Ingredients []AddIngredientRequest `json:"ingredients" validate:"required,dive,required"`
 }
 

@@ -5,6 +5,8 @@ import (
 	"shopping-list/db"
 	"shopping-list/messages"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 func (api *ApiHandler) ConsumeMessages() {
@@ -15,7 +17,7 @@ func (api *ApiHandler) ConsumeMessages() {
 }
 
 func (api *ApiHandler) consumesMessages() {
-
+	l := logger.WithField("method", "consumesMessages")
 	q := messages.GetShoppingListQueue(api.amqp)
 	if q == nil {
 		return
@@ -23,7 +25,7 @@ func (api *ApiHandler) consumesMessages() {
 
 	ch, err := api.amqp.Channel()
 	if err != nil {
-		logger.WithError(err).Error("Failed to open a channel")
+		l.WithError(err).Error("Failed to open a channel")
 	}
 
 	defer ch.Close()
@@ -39,26 +41,31 @@ func (api *ApiHandler) consumesMessages() {
 	)
 
 	if err != nil {
-		logger.WithError(err).Error("Failed to register a consumer")
+		l.WithError(err).Error("Failed to register a consumer")
 	}
 
 	for d := range msgs {
 		// Transform the message into a string
-		// str := string(d.Body)
-		logger.WithField("message", string(d.Body)).Info("Received a message")
 		recipe := new(AddRecipeRequest)
 		err := json.Unmarshal(d.Body, recipe)
 		if err != nil {
-			logger.WithError(err).Error("Failed to unmarshal the message")
+			l.WithField("message", string(d.Body)).WithError(err).Error("Failed to unmarshal the message")
 		}
 		if err := api.validation.Validate.Struct(recipe); err != nil {
-			logger.WithError(err).Error("Failed to validate the message")
+			l.WithField("message", string(d.Body)).WithError(err).Error("Failed to validate the message")
 			break
 		}
 		recipeDb, ingredientsDb := NewRecipe(recipe)
-		err = db.AddRecipe(api.rdb, "1", recipe.ID, recipeDb, ingredientsDb)
+		l.WithFields(logrus.Fields{
+			"recipeId":         recipe.ID,
+			"recipeUserId":     recipe.UserID,
+			"ingredientsCount": len(recipe.Ingredients),
+		}).Info("Received a message")
+
+		l.WithField("ingredients", ingredientsDb).Debug("Creating shopping list with list of ingredients")
+		err = db.AddRecipe(api.rdb, recipe.UserID, recipe.ID, recipeDb, ingredientsDb)
 		if err != nil {
-			logger.WithError(err).Error("Failed to insert the recipe")
+			l.WithError(err).Error("Failed to insert the recipe")
 		}
 	}
 }
