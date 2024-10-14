@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"os"
+	"os/signal"
 	"shopping-list/api"
 	"shopping-list/configuration"
 	"shopping-list/db"
 	"shopping-list/messages"
 	"shopping-list/validation"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 )
@@ -34,10 +36,11 @@ func main() {
 
 	h.Register(v1, conf)
 	tp, _ := api.InitOtel()
-
+	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
+		cancel()
 		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Printf("Error shutting down tracer provider: %v", err)
+			logger.WithError(err).Error("Error shutting down tracer provider")
 		}
 		if err := rdb.Close(); err != nil {
 			logger.WithError(err).Error("Error closing redis connection")
@@ -46,6 +49,19 @@ func main() {
 
 	go func() {
 		h.ConsumeMessages()
+	}()
+
+	go func() {
+		h.ConsumeAddIngredientMessage(ctx)
+	}()
+
+	// Graceful shutdown
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		<-sigCh
+		logger.Info("Shutting down gracefully...")
+		cancel()
 	}()
 
 	r.Logger.Fatal(r.Start(fmt.Sprintf("%v:%v", conf.ListenAddress, conf.ListenPort)))

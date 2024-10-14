@@ -21,6 +21,7 @@ type Configuration struct {
 	TranslateValidation bool
 	RabbitURI           string
 	JWTSecret           string
+	OtelServiceName     string
 }
 
 func New() *Configuration {
@@ -65,6 +66,7 @@ func New() *Configuration {
 	}
 
 	conf.JWTSecret = os.Getenv("JWT_SECRET")
+	conf.OtelServiceName = os.Getenv("OTEL_SERVICE_NAME")
 
 	return &conf
 }

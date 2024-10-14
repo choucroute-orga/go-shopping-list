@@ -7,6 +7,8 @@ import (
 	"github.com/labstack/echo/v4"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type ApiHandler struct {
@@ -14,6 +16,7 @@ type ApiHandler struct {
 	rdb        *redis.Client
 	amqp       *amqp.Connection
 	validation *validation.Validation
+	tracer     trace.Tracer
 }
 
 func NewApiHandler(conf *configuration.Configuration, rdb *redis.Client, amqp *amqp.Connection) *ApiHandler {
@@ -22,6 +25,7 @@ func NewApiHandler(conf *configuration.Configuration, rdb *redis.Client, amqp *a
 		rdb:        rdb,
 		amqp:       amqp,
 		validation: validation.New(conf),
+		tracer:     otel.Tracer(conf.OtelServiceName),
 	}
 	return &handler
 }

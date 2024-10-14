@@ -6,22 +6,14 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-)
-
-const name = "shopping-list-api"
-
-var (
-	tracer = otel.Tracer(name)
-	// logger = otelslog.NewLogger(name)
 )
 
 var logger = logrus.WithField("context", "api/routes")
 
 func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 
-	ctx, span := tracer.Start(c.Request().Context(), "getAliveStatus")
+	ctx, span := api.tracer.Start(c.Request().Context(), "getAliveStatus")
 
 	// Use ctx to pass the active span.
 	l := logger.WithContext(ctx).WithField("request", "getAliveStatus")
@@ -41,7 +33,7 @@ func (api *ApiHandler) getAliveStatus(c echo.Context) error {
 }
 
 func (api *ApiHandler) getReadyStatus(c echo.Context) error {
-	ctx, span := tracer.Start(c.Request().Context(), "getReadyStatus")
+	ctx, span := api.tracer.Start(c.Request().Context(), "getReadyStatus")
 	l := logger.WithContext(ctx).WithField("request", "getReadyStatus")
 	status := NewHealthResponse(ReadyStatus)
 
@@ -61,7 +53,7 @@ func (api *ApiHandler) getReadyStatus(c echo.Context) error {
 }
 
 func (api *ApiHandler) getShoppingList(c echo.Context) error {
-	ctx, span := tracer.Start(c.Request().Context(), "getShoppingList")
+	ctx, span := api.tracer.Start(c.Request().Context(), "getShoppingList")
 	l := logger.WithField("request", "getShoppingList").WithContext(ctx)
 
 	l.Debug("Getting Shopping List")
